@@ -60,7 +60,7 @@ def main():
     BOT_TOKEN = os.getenv("BOT_TOKEN")
     CHAT_ID = os.getenv("CHAT_ID")
     OPENAI_KEY = os.getenv("OPENAI_KEY")
-
+    
     # Validate environment variables
     if not OPENAI_KEY:
         raise ValueError("OPENAI_KEY environment variable is not set!")
@@ -98,16 +98,15 @@ def main():
     news_text = "\n".join(news)
     github_text = "\n".join(github_projects)
 
-    prompt = f"""
+    # Send News to GPT separately
+    news_prompt = f"""
+    Analyze the following AI/Tech news and summarize the most important items.
+    
     News:
     {news_text}
-
-    GitHub:
-    {github_text}
-    USE ONLY THE INFORMATION PROVIDED ABOVE. DO NOT MAKE UP ANY NEWS OR PROJECTS.
-    You are a tech radar assistant. Your job is to analyze the latest news and GitHub projects in technology and AI, Data, ML, and summarize the most important ones for a tech-savvy audience.
-    Select important news from this list.
-    Make two sections: "News" and "GitHub".
+    
+    USE ONLY THE INFORMATION PROVIDED ABOVE. DO NOT MAKE UP ANY NEWS.
+    You are a tech radar assistant. Summarize the most important news items.
     News should be labeled with categories like "AI", "Cloud", "Security", "Data", "Startups", "Government", "Ethics", "Hardware", "Software".
     Every news item should have:
         1. datetime
@@ -116,40 +115,59 @@ def main():
         4. a category label
         5. a link to the original article
         6. a brief explanation of why it matters
+    """
+
+    # Send GitHub to GPT separately
+    github_prompt = f"""
+    Analyze the following GitHub trending projects and summarize the most important ones.
+    
+    GitHub Projects:
+    {github_text}
+    
+    USE ONLY THE INFORMATION PROVIDED ABOVE. DO NOT MAKE UP ANY PROJECTS.
+    You are a tech radar assistant. Summarize the most important GitHub projects.
     Every github project should have:
         1. name
         2. a one-line description
         3. a link to the project
         4. a brief explanation of why it matters
-
     """
 
-    response = client.chat.completions.create(
+    # Get responses from GPT
+    response_news = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": news_prompt}]
     )
+    news_summary = response_news.choices[0].message.content
 
-    summary = response.choices[0].message.content
+    response_github = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": github_prompt}]
+    )
+    github_summary = response_github.choices[0].message.content
 
-    message = f"🧠 AI Tech Radar\n\n{summary}"
-
-    # Telegram has a 4096 character limit, split if necessary
-    if len(message) > 4096:
-        messages = [message[i:i+4096] for i in range(0, len(message), 4096)]
-    else:
-        messages = [message]
+    # Send to Telegram
+    telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     
-    for msg in messages:
-        response = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            data={"chat_id": CHAT_ID, "text": msg}
-        )
-        
-        if response.status_code == 200:
-            print(f"✅ Message sent successfully")
-        else:
-            print(f"❌ Failed to send message. Status code: {response.status_code}")
-            print(f"Response: {response.text}")
+    print(f"\n📤 Sending to Telegram...")
+    
+    # Send News
+    news_message = f"📰 AI Tech Radar - NEWS\n\n{news_summary}"
+    telegram_data = {"chat_id": CHAT_ID, "text": news_message}
+    
+    try:
+        tg_response = requests.post(telegram_url, data=telegram_data)
+    except Exception as e:
+        raise RuntimeError(f"❌ Error sending news: {e}")
+    
+    # Send GitHub
+    github_message = f"⭐ AI Tech Radar - GITHUB\n\n{github_summary}"
+    telegram_data = {"chat_id": CHAT_ID, "text": github_message}
+    
+    try:
+        tg_response = requests.post(telegram_url, data=telegram_data)
+    except Exception as e:
+        raise RuntimeError(f"❌ Error sending github: {e}")
 
 if __name__ == "__main__":
     main()
