@@ -61,6 +61,10 @@ def main():
     CHAT_ID = os.getenv("CHAT_ID")
     OPENAI_KEY = os.getenv("OPENAI_KEY")
 
+    # Validate environment variables
+    if not OPENAI_KEY:
+        raise ValueError("OPENAI_KEY environment variable is not set!")
+
     client = OpenAI(api_key=OPENAI_KEY)
 
     feeds = [
