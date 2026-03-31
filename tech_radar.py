@@ -64,6 +64,10 @@ def main():
     # Validate environment variables
     if not OPENAI_KEY:
         raise ValueError("OPENAI_KEY environment variable is not set!")
+    if not BOT_TOKEN:
+        raise ValueError("BOT_TOKEN environment variable is not set!")
+    if not CHAT_ID:
+        raise ValueError("CHAT_ID environment variable is not set!")
 
     client = OpenAI(api_key=OPENAI_KEY)
 
@@ -129,10 +133,23 @@ def main():
 
     message = f"🧠 AI Tech Radar\n\n{summary}"
 
-    requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": message}
-    )
+    # Telegram has a 4096 character limit, split if necessary
+    if len(message) > 4096:
+        messages = [message[i:i+4096] for i in range(0, len(message), 4096)]
+    else:
+        messages = [message]
+    
+    for msg in messages:
+        response = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            data={"chat_id": CHAT_ID, "text": msg}
+        )
+        
+        if response.status_code == 200:
+            print(f"✅ Message sent successfully")
+        else:
+            print(f"❌ Failed to send message. Status code: {response.status_code}")
+            print(f"Response: {response.text}")
 
 if __name__ == "__main__":
     main()
